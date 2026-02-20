@@ -5,6 +5,8 @@ import { selectModel, callOpenRouterWithFallback, LLM_MODELS } from "./llmRouter
 import { healFailedSkill, getHealingStats, getRecentErrors } from "./selfHealing";
 import { scanAllRepos, getRecentFindings, getFindingsByType, getMonitoredRepos, resolveFinding } from "./githubWatcher";
 import { runInnovationEngine, getRecentInnovations, getTopInnovations, readInnovationsFile } from "./innovationEngine";
+import * as affiliate from "./affiliateMarketing";
+import * as infra from "./infrastructureMonitoring";
 
 export const skillsRouter = router({
   /**
@@ -236,5 +238,85 @@ export const skillsRouter = router({
 
   innovationsFile: publicProcedure.query(async () => {
     return await readInnovationsFile();
+  }),
+
+  // Affiliate Marketing
+  createAffiliateLink: protectedProcedure
+    .input(
+      z.object({
+        platform: z.string(),
+        productName: z.string(),
+        productUrl: z.string(),
+        affiliateUrl: z.string(),
+        shortCode: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return await affiliate.createAffiliateLink(input);
+    }),
+
+  generateMarketingContent: protectedProcedure
+    .input(
+      z.object({
+        productName: z.string(),
+        productDescription: z.string(),
+        platform: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return await affiliate.generateMarketingContent(
+        input.productName,
+        input.productDescription,
+        input.platform
+      );
+    }),
+
+  affiliateLinks: publicProcedure.query(async () => {
+    return await affiliate.getAllAffiliateLinks();
+  }),
+
+  affiliateAnalytics: publicProcedure.query(async () => {
+    return await affiliate.getAffiliateAnalytics();
+  }),
+
+  topPerformers: publicProcedure
+    .input(z.object({ limit: z.number().optional() }))
+    .query(async ({ input }) => {
+      return await affiliate.getTopPerformers(input.limit);
+    }),
+
+  // Infrastructure Monitoring
+  registerServer: protectedProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        url: z.string(),
+        type: z.enum(["web", "api", "database", "other"]),
+        expectedStatus: z.number(),
+        checkInterval: z.number(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return await infra.registerServer(input);
+    }),
+
+  allServers: publicProcedure.query(async () => {
+    return await infra.getAllServers();
+  }),
+
+  performHealthCheck: protectedProcedure
+    .input(z.object({ serverId: z.number() }))
+    .mutation(async ({ input }) => {
+      return await infra.performHealthCheck(input.serverId);
+    }),
+
+  serverHealthHistory: publicProcedure
+    .input(z.object({ serverId: z.number(), limit: z.number().optional() }))
+    .query(async ({ input }) => {
+      return await infra.getServerHealthHistory(input.serverId, input.limit);
+    }),
+
+  infrastructureOverview: publicProcedure.query(async () => {
+    return await infra.getInfrastructureOverview();
   }),
 });
