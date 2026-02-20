@@ -2,6 +2,9 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as skillMgr from "./skillManager";
 import { selectModel, callOpenRouterWithFallback, LLM_MODELS } from "./llmRouter";
+import { healFailedSkill, getHealingStats, getRecentErrors } from "./selfHealing";
+import { scanAllRepos, getRecentFindings, getFindingsByType, getMonitoredRepos, resolveFinding } from "./githubWatcher";
+import { runInnovationEngine, getRecentInnovations, getTopInnovations, readInnovationsFile } from "./innovationEngine";
 
 export const skillsRouter = router({
   /**
@@ -157,4 +160,81 @@ export const skillsRouter = router({
 
       return stats;
     }),
+
+  // Self-Healing Engine
+  healingStats: publicProcedure.query(async () => {
+    return await getHealingStats();
+  }),
+
+  recentErrors: publicProcedure
+    .input(z.object({ limit: z.number().optional() }))
+    .query(async ({ input }) => {
+      return await getRecentErrors(input.limit);
+    }),
+
+  healError: protectedProcedure
+    .input(
+      z.object({
+        scheduleId: z.number(),
+        skillId: z.number(),
+        errorMessage: z.string(),
+        errorStack: z.string().optional(),
+        attemptNumber: z.number(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return await healFailedSkill({
+        ...input,
+        timestamp: new Date(),
+      });
+    }),
+
+  // GitHub Watcher
+  scanRepos: protectedProcedure.mutation(async () => {
+    return await scanAllRepos();
+  }),
+
+  githubFindings: publicProcedure
+    .input(z.object({ limit: z.number().optional() }))
+    .query(async ({ input }) => {
+      return await getRecentFindings(input.limit);
+    }),
+
+  githubFindingsByType: publicProcedure
+    .input(z.object({ type: z.string() }))
+    .query(async ({ input }) => {
+      return await getFindingsByType(input.type);
+    }),
+
+  monitoredRepos: publicProcedure.query(async () => {
+    return await getMonitoredRepos();
+  }),
+
+  resolveFinding: protectedProcedure
+    .input(z.object({ findingId: z.number() }))
+    .mutation(async ({ input }) => {
+      await resolveFinding(input.findingId);
+      return { success: true };
+    }),
+
+  // Innovation Engine
+  generateInnovation: protectedProcedure.mutation(async () => {
+    return await runInnovationEngine();
+  }),
+
+  recentInnovations: publicProcedure
+    .input(z.object({ limit: z.number().optional() }))
+    .query(async ({ input }) => {
+      return await getRecentInnovations(input.limit);
+    }),
+
+  topInnovations: publicProcedure
+    .input(z.object({ limit: z.number().optional() }))
+    .query(async ({ input }) => {
+      return await getTopInnovations(input.limit);
+    }),
+
+  innovationsFile: publicProcedure.query(async () => {
+    return await readInnovationsFile();
+  }),
 });
